@@ -10,7 +10,7 @@ This project has been built with Jetbrains' CLion IDE. It can also be built and 
 ### Requirements
 * CMake >= v3.23
 * Ninja >= v1.11
-* C and C++ Toolchains with C17 and C++21 support, respectively.
+* C and C++ Toolchains with C17 and C++20 support, respectively.
 
 ### Build
 `cmake --build cmake-build-debug --target all -j 12`
