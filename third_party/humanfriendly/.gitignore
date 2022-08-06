@@ -1,0 +1,13 @@
+*.egg-info/
+*.pyc
+.coverage
+.coverage.*
+.tox
+__pycache__/
+dist/*.tar.gz
+dist/*.zip
+docs/_build/
+docs/_static/
+docs/_templates/
+docs/build/
+htmlcov/
