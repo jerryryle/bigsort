@@ -1,6 +1,6 @@
 #include "gtest/gtest.h"
 
-#include "bigsort.h"
+#include "runs.h"
 
 class BigSortTest : public ::testing::Test {
 protected:
