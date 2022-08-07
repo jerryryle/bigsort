@@ -36,7 +36,7 @@ void print_usage() {
             "                          (which also determines memory usage)\n");
 }
 
-size_t round_up_to_mutliple_of_4(size_t num) {
+size_t round_up_to_multiple_of_4(size_t num) {
     // This rounds up by adding 3 and then clearing the lowest two bits, ensuring a multiple of 4
     return (num + 3) & ~0x3;
 }
@@ -79,7 +79,7 @@ void get_options(int argc, char * const argv[], struct options *opts) {
         optind++;
     }
     // Ensure that the run size is a multiple of 4
-    opts->run_size = round_up_to_mutliple_of_4(opts->run_size);
+    opts->run_size = round_up_to_multiple_of_4(opts->run_size);
 }
 
 bool check_file_size(int input_fd) {
