@@ -32,8 +32,8 @@ static enum read_uint32_result read_uint32(int input_fd, uint32_t *val)
 }
 
 static bool copy_file(int input_fd, int output_fd) {
-    enum read_uint32_result read_result;
-    uint32_t val;
+    enum read_uint32_result read_result = READ_ERROR;
+    uint32_t val = 0;
 
     // Read values until a read fails.
     while ((read_result = read_uint32(input_fd, &val)) == READ_SUCCESS) {
@@ -51,9 +51,9 @@ static bool copy_file(int input_fd, int output_fd) {
 }
 
 bool merge_files(int input1_fd, int input2_fd, int output_fd) {
-    uint32_t val1;
-    uint32_t val2;
-    int read_result;
+    uint32_t val1 = 0;
+    uint32_t val2 = 0;
+    enum read_uint32_result read_result = READ_ERROR;
 
     // Read initial value from input1
     read_result = read_uint32(input1_fd, &val1);
@@ -113,5 +113,6 @@ bool merge_files(int input1_fd, int input2_fd, int output_fd) {
             }
         }
     }
+    // Should be unreachable.
     return false;
 }

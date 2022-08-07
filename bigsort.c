@@ -54,6 +54,7 @@ void get_options(int argc, char * const argv[], struct options *opts) {
     opts->output_filename = NULL;
     opts->run_size = DEFAULT_RUN_SIZE;
 
+    // Loop over arguments, looking for any option flags. These must come before any positional arguments.
     for (;;) {
         int opt = getopt_long(argc, argv, "hr:", long_options, NULL);
         if (opt == -1) {
@@ -70,10 +71,12 @@ void get_options(int argc, char * const argv[], struct options *opts) {
             break;
         }
     }
+    // First positional argument is the input filename
     if (optind < argc) {
         opts->input_filename = argv[optind];
         optind++;
     }
+    // Second positional argument is the output filename
     if (optind < argc) {
         opts->output_filename = argv[optind];
         optind++;
@@ -83,12 +86,11 @@ void get_options(int argc, char * const argv[], struct options *opts) {
 }
 
 bool check_file_size(int input_fd) {
-    struct stat file_status;
+    struct stat file_status = {0};
     fstat(input_fd, &file_status);
-    if ((file_status.st_size & 0x03) == 0) {
-        return true;
-    }
-    return false;
+    // Check that the file size is a multiple of 4. This bit magic checks that the lowest two bits are zero. If they
+    // are, then the file size is a multiple of 4.
+    return ((file_status.st_size & 0x03) == 0);
 }
 
 /*
@@ -101,13 +103,13 @@ size_t create_runs_with_context(struct run_context *run, char const *output_file
         // "[output_filename].[generation_number].[run_number]"
         // The generation number starts at zero for the initial runs. This will increment later
         // during the merging phase.
-        char run_filename[PATH_MAX];
+        char run_filename[PATH_MAX] = {0};
         snprintf(run_filename, sizeof(run_filename), "%s.0.%lu", output_filename, num_runs);
 
         // Create and open the run file
         int run_fd = open(run_filename, O_CREAT|O_TRUNC|O_WRONLY, S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH);
         if (run_fd < 0) {
-            printf("ERROR: unable to create run file: %s\n", strerror(errno));
+            fprintf(stderr, "ERROR: unable to create run file: %s\n", strerror(errno));
             return 0;
         }
 
@@ -118,7 +120,7 @@ size_t create_runs_with_context(struct run_context *run, char const *output_file
         close(run_fd);
 
         if (!success) {
-            printf("ERROR: unable to create run.\n");
+            fprintf(stderr, "ERROR: unable to create run.\n");
             return 0;
         }
 
@@ -134,20 +136,20 @@ size_t create_runs_with_context(struct run_context *run, char const *output_file
  */
 size_t create_runs(int input_fd, char const *output_filename, size_t run_size) {
     if (!check_file_size(input_fd)) {
-        printf("ERROR: input file's size must be a multiple of 4.\n");
+        fprintf(stderr, "ERROR: input file's size must be a multiple of 4.\n");
         return 0;
     }
 
     struct run_context *run = run_new(input_fd, run_size);
     if (!run) {
-        printf("ERROR: Failed to create run context\n");
+        fprintf(stderr, "ERROR: Failed to create run context\n");
         return 0;
     }
 
     size_t runs = create_runs_with_context(run, output_filename);
 
     if (!run_delete(run)) {
-        printf("ERROR: Failed to delete run context\n");
+        fprintf(stderr, "ERROR: Failed to delete run context\n");
         return 0;
     }
     return runs;
@@ -161,8 +163,8 @@ bool merge_single_run(
         char const *output_filename,
         size_t run_generation, size_t run_number,
         size_t new_generation, size_t new_run_number) {
-    char input_run_filename[PATH_MAX];
-    char output_run_filename[PATH_MAX];
+    char input_run_filename[PATH_MAX] = {0};
+    char output_run_filename[PATH_MAX] = {0};
 
     snprintf(input_run_filename, sizeof(input_run_filename),
              "%s.%lu.%lu", output_filename, run_generation, run_number);
@@ -191,9 +193,9 @@ bool merge_two_runs(
         char const *output_filename,
         size_t run_generation, size_t run_number,
         size_t new_generation, size_t new_run_number) {
-    char input1_run_filename[PATH_MAX];
-    char input2_run_filename[PATH_MAX];
-    char output_run_filename[PATH_MAX];
+    char input1_run_filename[PATH_MAX] = {0};
+    char input2_run_filename[PATH_MAX] = {0};
+    char output_run_filename[PATH_MAX] = {0};
 
     snprintf(input1_run_filename, sizeof(input1_run_filename),
              "%s.%lu.%lu", output_filename, run_generation, run_number);
@@ -204,13 +206,13 @@ bool merge_two_runs(
 
     int input1_run_fd = open(input1_run_filename, O_RDONLY);
     if (input1_run_fd < 0) {
-        printf("ERROR: unable to open run file: %s\n", strerror(errno));
+        fprintf(stderr, "ERROR: unable to open run file: %s\n", strerror(errno));
         return false;
     }
 
     int input2_run_fd = open(input2_run_filename, O_RDONLY);
     if (input2_run_fd < 0) {
-        printf("ERROR: unable to open run file: %s\n", strerror(errno));
+        fprintf(stderr, "ERROR: unable to open run file: %s\n", strerror(errno));
         close(input1_run_fd);
         return false;
     }
@@ -218,7 +220,7 @@ bool merge_two_runs(
     // Create and open the output run file
     int output_run_fd = open(output_run_filename, O_CREAT|O_TRUNC|O_WRONLY, S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH);
     if (output_run_fd < 0) {
-        printf("ERROR: unable to create run file: %s\n", strerror(errno));
+        fprintf(stderr, "ERROR: unable to create run file: %s\n", strerror(errno));
         close(input2_run_fd);
         close(input1_run_fd);
         return false;
@@ -234,7 +236,7 @@ bool merge_two_runs(
 
     // Delete input files now that they've been merged into a new file
     if ((remove(input1_run_filename) != 0) || (remove(input2_run_filename) != 0)) {
-        printf("ERROR: unable to remove run file: %s\n", strerror(errno));
+        fprintf(stderr, "ERROR: unable to remove run file: %s\n", strerror(errno));
         return false;
     }
 
@@ -295,19 +297,19 @@ bool merge_runs(char const *output_filename, size_t num_runs) {
 }
 
 int main(int argc, char *argv[]) {
-    struct options opts;
+    struct options opts = {0};
     get_options(argc, argv, &opts);
     if (opts.print_help) {
         print_usage();
         return 0;
     }
     if (!opts.input_filename) {
-        printf("ERROR: Missing input filename\n");
+        fprintf(stderr, "ERROR: Missing input filename\n");
         print_usage();
         return -1;
     }
     if (!opts.output_filename) {
-        printf("ERROR: Missing output filename\n");
+        fprintf(stderr, "ERROR: Missing output filename\n");
         print_usage();
         return -1;
     }
@@ -322,7 +324,7 @@ int main(int argc, char *argv[]) {
     // Open the input file to sort
     int input_fd = open(opts.input_filename, O_RDONLY);
     if (input_fd < 0) {
-        printf("ERROR: unable to open input file: %s\n", strerror(errno));
+        fprintf(stderr, "ERROR: unable to open input file: %s\n", strerror(errno));
         return -1;
     }
 
@@ -331,13 +333,13 @@ int main(int argc, char *argv[]) {
     close(input_fd);
 
     if (!num_runs) {
-        printf("ERROR: unable to create runs.\n");
+        fprintf(stderr, "ERROR: unable to create runs.\n");
         return -1;
     }
 
     // Merge the initial runs into the final output file
     if (!merge_runs(opts.output_filename, num_runs)) {
-        printf("ERROR: unable to merge runs.\n");
+        fprintf(stderr, "ERROR: unable to merge runs.\n");
         return -1;
     }
     printf("Completed successfully!\n");
