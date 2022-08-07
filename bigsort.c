@@ -8,6 +8,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <sys/stat.h>
+#include "merge.h"
 #include "run.h"
 
 static size_t const DEFAULT_RUN_SIZE = (size_t)1 * (1<<20); // (1<<20) is 1MB
@@ -93,9 +94,12 @@ bool check_file_size(int input_fd) {
 size_t create_runs_with_context(struct run_context *run, char const *output_filename) {
     size_t num_runs = 0;
     while (!run_finished(run)) {
-        // Format the next run filename using the output filename as a base
+        // Format the next run filename using the output filename as a base. We'll use the format:
+        // "[output_filename].[generation_number].[run_number]"
+        // The generation number starts at zero for the initial runs. This will increment later
+        // during the merging phase.
         char run_filename[PATH_MAX];
-        snprintf(run_filename, sizeof(run_filename), "%s.%lu", output_filename, num_runs);
+        snprintf(run_filename, sizeof(run_filename), "%s.0.%lu", output_filename, num_runs);
 
         // Create and open the run file
         int run_fd = open(run_filename, O_CREAT|O_TRUNC|O_WRONLY, S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH);
@@ -108,10 +112,7 @@ size_t create_runs_with_context(struct run_context *run, char const *output_file
         bool success = run_create_run(run, run_fd);
 
         // Close the run file
-        if (close(run_fd) != 0) {
-            printf("ERROR: unable to close run file: %s\n", strerror(errno));
-            return 0;
-        }
+        close(run_fd);
 
         if (!success) {
             printf("ERROR: unable to create run.\n");
@@ -143,6 +144,118 @@ size_t create_runs(int input_fd, char const *output_filename, size_t run_size) {
         return 0;
     }
     return runs;
+}
+
+bool merge_single_run(
+        char const *output_filename,
+        int run_generation, size_t run_number,
+        int new_generation, size_t new_run_number) {
+    char input_run_filename[PATH_MAX];
+    char output_run_filename[PATH_MAX];
+
+    snprintf(input_run_filename, sizeof(input_run_filename), "%s.%d.%lu", output_filename, run_generation,
+             run_number);
+
+    if (new_generation <= 0) {
+        snprintf(output_run_filename, sizeof(output_run_filename), "%s", output_filename);
+    } else {
+        snprintf(output_run_filename, sizeof(output_run_filename), "%s.%d.%lu", output_filename, new_generation,
+                 new_run_number);
+    }
+
+    // No need to copy data. Just rename the input file to the new output file.
+    if (rename(input_run_filename, output_run_filename) != 0) {
+        return false;
+    }
+    return true;
+}
+
+bool merge_two_runs(
+        char const *output_filename,
+        int run_generation, size_t run_number,
+        int new_generation, size_t new_run_number) {
+    char input1_run_filename[PATH_MAX];
+    char input2_run_filename[PATH_MAX];
+    char output_run_filename[PATH_MAX];
+
+    snprintf(input1_run_filename, sizeof(input1_run_filename), "%s.%d.%lu", output_filename, run_generation,
+             run_number);
+    snprintf(input2_run_filename, sizeof(input2_run_filename), "%s.%d.%lu", output_filename, run_generation,
+             run_number+1);
+    snprintf(output_run_filename, sizeof(output_run_filename), "%s.%d.%lu", output_filename, new_generation,
+             new_run_number);
+
+    int input1_run_fd = open(input1_run_filename, O_RDONLY);
+    if (input1_run_fd < 0) {
+        printf("ERROR: unable to open run file: %s\n", strerror(errno));
+        return false;
+    }
+
+    int input2_run_fd = open(input2_run_filename, O_RDONLY);
+    if (input2_run_fd < 0) {
+        printf("ERROR: unable to open run file: %s\n", strerror(errno));
+        close(input1_run_fd);
+        return false;
+    }
+
+    // Create and open the output run file
+    int output_run_fd = open(output_run_filename, O_CREAT|O_TRUNC|O_WRONLY, S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH);
+    if (output_run_fd < 0) {
+        printf("ERROR: unable to create run file: %s\n", strerror(errno));
+        close(input2_run_fd);
+        close(input1_run_fd);
+        return false;
+    }
+
+    // Perform the merge with the opened files.
+    bool success = merge_files(input1_run_fd, input2_run_fd, output_run_fd);
+
+    // Close all files
+    close(output_run_fd);
+    close(input2_run_fd);
+    close(input1_run_fd);
+
+    // Delete input files now that they've been merged into a new file
+    if ((remove(input1_run_filename) != 0) || (remove(input2_run_filename) != 0)) {
+        printf("ERROR: unable to remove run file: %s\n", strerror(errno));
+        return false;
+    }
+
+    return success;
+}
+
+bool merge_runs(char const *output_filename, size_t num_input_runs, int input_generation) {
+    size_t current_input_run = 0;
+    if (num_input_runs < 2) {
+        // We're down to a single file. Just rename it to the final output and return.
+        return merge_single_run(output_filename, input_generation, current_input_run, 0, 0);
+    }
+
+    int const output_generation = input_generation + 1;
+    size_t num_output_runs = 0;
+
+    while (current_input_run < num_input_runs){
+        if (num_input_runs-current_input_run < 2) {
+            if (!merge_single_run(
+                    output_filename,
+                    input_generation, current_input_run,
+                    output_generation, num_output_runs)) {
+                return false;
+            }
+            current_input_run++;
+        } else {
+            if (!merge_two_runs(
+                    output_filename,
+                    input_generation, current_input_run,
+                    output_generation, num_output_runs)) {
+                return false;
+            }
+            current_input_run += 2;
+        }
+        num_output_runs++;
+    }
+
+    return merge_runs(output_filename, num_output_runs, output_generation);
 }
 
 int main(int argc, char *argv[]) {
@@ -178,15 +291,19 @@ int main(int argc, char *argv[]) {
     }
 
     // Create the initial runs
-    bool success = create_runs(input_fd, opts.output_filename, opts.run_size);
-    if (close(input_fd) < 0) {
-        printf("ERROR: unable to close input file: %s\n", strerror(errno));
-        return -1;
-    }
-    if (!success) {
+    size_t num_runs = create_runs(input_fd, opts.output_filename, opts.run_size);
+    close(input_fd);
+
+    if (!num_runs) {
         printf("ERROR: unable to create runs.\n");
         return -1;
     }
 
+    // Merge the initial runs into the final output file
+    if (!merge_runs(opts.output_filename, num_runs, 0)) {
+        printf("ERROR: unable to merge runs.\n");
+        return -1;
+    }
+    printf("Completed successfully!\n");
     return 0;
 }
