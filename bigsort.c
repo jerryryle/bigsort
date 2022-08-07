@@ -140,7 +140,7 @@ size_t create_runs(FILE *input_file, char const *output_filename, size_t run_siz
         return 0;
     }
 
-    struct run_context *run = run_new(input_file, run_size);
+    struct run_context *run = run_new(input_file, run_size/sizeof(uint32_t));
     if (!run) {
         fprintf(stderr, "ERROR: Failed to create run context\n");
         return 0;
