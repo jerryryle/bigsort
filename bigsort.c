@@ -254,14 +254,14 @@ bool merge_runs(char const *output_filename, size_t num_runs) {
     size_t num_runs_in_generation = num_runs;
 
     // Keep merging runs into new generations of longer runs until there are no more runs to merge.
-    while(num_runs_in_generation >= 2) {
+    while (num_runs_in_generation >= 2) {
         size_t const output_generation = generation + 1;
         size_t input_current_run = 0;
         size_t num_runs_in_output_generation = 0;
 
         // Merge all runs in the current generation.
-        while (input_current_run < num_runs_in_generation){
-            if (num_runs_in_generation-input_current_run < 2) {
+        while (input_current_run < num_runs_in_generation) {
+            if (num_runs_in_generation - input_current_run < 2) {
                 // If there's only one run left in the current generation, merge it with itself. This just
                 // renames the file so it becomes a run in the next generation.
                 if (!merge_single_run(
@@ -301,17 +301,17 @@ int main(int argc, char *argv[]) {
     get_options(argc, argv, &opts);
     if (opts.print_help) {
         print_usage();
-        return 0;
+        return EXIT_SUCCESS;
     }
     if (!opts.input_filename) {
         fprintf(stderr, "ERROR: Missing input filename\n");
         print_usage();
-        return -1;
+        return EXIT_FAILURE;
     }
     if (!opts.output_filename) {
         fprintf(stderr, "ERROR: Missing output filename\n");
         print_usage();
-        return -1;
+        return EXIT_FAILURE;
     }
 
     printf(
@@ -325,7 +325,7 @@ int main(int argc, char *argv[]) {
     int input_fd = open(opts.input_filename, O_RDONLY);
     if (input_fd < 0) {
         fprintf(stderr, "ERROR: unable to open input file: %s\n", strerror(errno));
-        return -1;
+        return EXIT_FAILURE;
     }
 
     // Create the initial runs
@@ -334,14 +334,14 @@ int main(int argc, char *argv[]) {
 
     if (!num_runs) {
         fprintf(stderr, "ERROR: unable to create runs.\n");
-        return -1;
+        return EXIT_FAILURE;
     }
 
     // Merge the initial runs into the final output file
     if (!merge_runs(opts.output_filename, num_runs)) {
         fprintf(stderr, "ERROR: unable to merge runs.\n");
-        return -1;
+        return EXIT_FAILURE;
     }
     printf("Completed successfully!\n");
-    return 0;
+    return EXIT_SUCCESS;
 }
