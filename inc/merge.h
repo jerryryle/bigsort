@@ -4,7 +4,8 @@
 #include <stddef.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdio.h>
 
-bool merge_files(int input1_fd, int input2_fd, int output_fd);
+bool merge_files(FILE *input1_file, FILE *input2_file, FILE *output_file);
 
 #endif // MERGE_H

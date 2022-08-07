@@ -1,10 +1,9 @@
 #include "run.h"
 #include <assert.h>
 #include <stdlib.h>
-#include <unistd.h>
 
 struct run_context {
-    int input_fd;
+    FILE *input_file;
     size_t size;
     uint32_t *data;
     bool finished;
@@ -22,8 +21,8 @@ static int compare_uint32_t(void const *left, void const *right) {
     return 0;
 }
 
-struct run_context *run_new(int input_fd, size_t run_size) {
-    assert(input_fd > -1);
+struct run_context *run_new(FILE *input_file, size_t run_size) {
+    assert(input_file);
     assert(run_size > 0);
 
     struct run_context *run = (struct run_context *)malloc(sizeof(struct run_context));
@@ -31,7 +30,7 @@ struct run_context *run_new(int input_fd, size_t run_size) {
         return NULL;
     }
 
-    run->input_fd = input_fd;
+    run->input_file = input_file;
     run->size = run_size;
     run->data = (uint32_t *)malloc(run_size / sizeof(uint32_t));
     if (!run->data) {
@@ -47,21 +46,21 @@ bool run_finished(struct run_context *run) {
     return run->finished;
 }
 
-bool run_create_run(struct run_context *run, int output_fd) {
+bool run_create_run(struct run_context *run, FILE *output_file) {
     assert(run);
-    assert(output_fd > -1);
+    assert(output_file);
 
     // Read a run's worth of data
-    ssize_t num_read = read(run->input_fd, run->data, run->size);
-    if (num_read < 0) {
+    size_t num_read = fread(run->data, 1, run->size, run->input_file);
+    if (ferror(run->input_file)) {
         return false;
     }
 
     // If we read any data, sort it and write it to the run file
     if (num_read > 0) {
         qsort(run->data, num_read / sizeof(uint32_t), sizeof(uint32_t), compare_uint32_t);
-        ssize_t num_written = write(output_fd, run->data, num_read);
-        if (num_written < 0) {
+        size_t num_written = fwrite(run->data, 1, num_read, output_file);
+        if (ferror(output_file)) {
             return false;
         }
     }
