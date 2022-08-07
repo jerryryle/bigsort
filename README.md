@@ -17,7 +17,7 @@ This project has been built with Jetbrains' CLion IDE. It can also be built and 
 
 ### Test
 1. Generate a 1MB test file named test.bin
-   - `./bigfile test.py 1MB`
+   - `./bigfile.py test.in 1MB`
 2. Sort it using a run size of 1KB
    - `./cmake-build-debug/bigsort --runsize=100000 test.in test.out`
 3. Verify that the resulting file is sorted
