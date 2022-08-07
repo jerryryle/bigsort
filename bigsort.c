@@ -91,6 +91,9 @@ bool check_file_size(int input_fd) {
     return false;
 }
 
+/*
+ * This creates the initial sorted runs given an acquired run context.
+ */
 size_t create_runs_with_context(struct run_context *run, char const *output_filename) {
     size_t num_runs = 0;
     while (!run_finished(run)) {
@@ -125,6 +128,10 @@ size_t create_runs_with_context(struct run_context *run, char const *output_file
     return num_runs;
 }
 
+/*
+ * This creates the initial sorted runs. It acquires needed resources, calls another function to create the runs, and
+ * then ensures that the resources are released.
+ */
 size_t create_runs(int input_fd, char const *output_filename, size_t run_size) {
     if (!check_file_size(input_fd)) {
         printf("ERROR: input file's size must be a multiple of 4.\n");
@@ -146,21 +153,27 @@ size_t create_runs(int input_fd, char const *output_filename, size_t run_size) {
     return runs;
 }
 
+/*
+ * This "merges" a single sorted run. It does so by moving the current generation run file to the next generation. This
+ * is simply a rename operation that updates the filename to reflect the new generation.
+ */
 bool merge_single_run(
         char const *output_filename,
-        int run_generation, size_t run_number,
-        int new_generation, size_t new_run_number) {
+        size_t run_generation, size_t run_number,
+        size_t new_generation, size_t new_run_number) {
     char input_run_filename[PATH_MAX];
     char output_run_filename[PATH_MAX];
 
-    snprintf(input_run_filename, sizeof(input_run_filename), "%s.%d.%lu", output_filename, run_generation,
-             run_number);
+    snprintf(input_run_filename, sizeof(input_run_filename),
+             "%s.%lu.%lu", output_filename, run_generation, run_number);
 
-    if (new_generation <= 0) {
-        snprintf(output_run_filename, sizeof(output_run_filename), "%s", output_filename);
+    if (new_generation == 0) {
+        // This is a special case that renames the final-generation run to the final output file.
+        snprintf(output_run_filename, sizeof(output_run_filename),
+                 "%s", output_filename);
     } else {
-        snprintf(output_run_filename, sizeof(output_run_filename), "%s.%d.%lu", output_filename, new_generation,
-                 new_run_number);
+        snprintf(output_run_filename, sizeof(output_run_filename),
+                 "%s.%lu.%lu", output_filename, new_generation, new_run_number);
     }
 
     // No need to copy data. Just rename the input file to the new output file.
@@ -170,20 +183,24 @@ bool merge_single_run(
     return true;
 }
 
+/*
+ * This merges a pair of sorted runs. It does so by acquiring all input/output file resources and then passing those to
+ * a library function that performs the actual merge.
+ */
 bool merge_two_runs(
         char const *output_filename,
-        int run_generation, size_t run_number,
-        int new_generation, size_t new_run_number) {
+        size_t run_generation, size_t run_number,
+        size_t new_generation, size_t new_run_number) {
     char input1_run_filename[PATH_MAX];
     char input2_run_filename[PATH_MAX];
     char output_run_filename[PATH_MAX];
 
-    snprintf(input1_run_filename, sizeof(input1_run_filename), "%s.%d.%lu", output_filename, run_generation,
-             run_number);
-    snprintf(input2_run_filename, sizeof(input2_run_filename), "%s.%d.%lu", output_filename, run_generation,
-             run_number+1);
-    snprintf(output_run_filename, sizeof(output_run_filename), "%s.%d.%lu", output_filename, new_generation,
-             new_run_number);
+    snprintf(input1_run_filename, sizeof(input1_run_filename),
+             "%s.%lu.%lu", output_filename, run_generation, run_number);
+    snprintf(input2_run_filename, sizeof(input2_run_filename),
+             "%s.%lu.%lu", output_filename, run_generation, run_number+1);
+    snprintf(output_run_filename, sizeof(output_run_filename),
+             "%s.%lu.%lu", output_filename, new_generation, new_run_number);
 
     int input1_run_fd = open(input1_run_filename, O_RDONLY);
     if (input1_run_fd < 0) {
@@ -224,38 +241,57 @@ bool merge_two_runs(
     return success;
 }
 
-bool merge_runs(char const *output_filename, size_t num_input_runs, int input_generation) {
-    size_t current_input_run = 0;
-    if (num_input_runs < 2) {
-        // We're down to a single file. Just rename it to the final output and return.
-        return merge_single_run(output_filename, input_generation, current_input_run, 0, 0);
-    }
+/*
+ * This merges the initial, sorted runs down into a single, fully sorted, fully merged file.
+ * It does so by first merging each pair of first-generation runs into larger, next-generation runs. It then proceeds
+ * to merge pairs of next-generation runs into even larger next-next-generation runs. This continues until only one
+ * large, final-generation runs remains. This is then renamed to the final output file.
+ */
+bool merge_runs(char const *output_filename, size_t num_runs) {
+    size_t generation = 0; // Generation counter
+    size_t num_runs_in_generation = num_runs;
 
-    int const output_generation = input_generation + 1;
-    size_t num_output_runs = 0;
+    // Keep merging runs into new generations of longer runs until there are no more runs to merge.
+    while(num_runs_in_generation >= 2) {
+        size_t const output_generation = generation + 1;
+        size_t input_current_run = 0;
+        size_t num_runs_in_output_generation = 0;
 
-    while (current_input_run < num_input_runs){
-        if (num_input_runs-current_input_run < 2) {
-            if (!merge_single_run(
-                    output_filename,
-                    input_generation, current_input_run,
-                    output_generation, num_output_runs)) {
-                return false;
+        // Merge all runs in the current generation.
+        while (input_current_run < num_runs_in_generation){
+            if (num_runs_in_generation-input_current_run < 2) {
+                // If there's only one run left in the current generation, merge it with itself. This just
+                // renames the file so it becomes a run in the next generation.
+                if (!merge_single_run(
+                        output_filename,
+                        generation, input_current_run,
+                        output_generation, num_runs_in_output_generation)) {
+                    return false;
+                }
+                // Update the run counter to reflect that we've merged one run
+                input_current_run++;
+            } else {
+                // Merge the next two runs
+                if (!merge_two_runs(
+                        output_filename,
+                        generation, input_current_run,
+                        output_generation, num_runs_in_output_generation)) {
+                    return false;
+                }
+                // Update the run counter to reflect that we've merged two runs
+                input_current_run += 2;
             }
-            current_input_run++;
-        } else {
-            if (!merge_two_runs(
-                    output_filename,
-                    input_generation, current_input_run,
-                    output_generation, num_output_runs)) {
-                return false;
-            }
-            current_input_run += 2;
+            // Track how many runs we've produced in the next generation
+            num_runs_in_output_generation++;
         }
-        num_output_runs++;
+
+        // Update the current generation for the next loop iteration.
+        generation = output_generation;
+        num_runs_in_generation = num_runs_in_output_generation;
     }
 
-    return merge_runs(output_filename, num_output_runs, output_generation);
+    // We've now merged down to a single run. Just rename the run file to the final output and return.
+    return merge_single_run(output_filename, generation, 0, 0, 0);
 }
 
 int main(int argc, char *argv[]) {
@@ -300,7 +336,7 @@ int main(int argc, char *argv[]) {
     }
 
     // Merge the initial runs into the final output file
-    if (!merge_runs(opts.output_filename, num_runs, 0)) {
+    if (!merge_runs(opts.output_filename, num_runs)) {
         printf("ERROR: unable to merge runs.\n");
         return -1;
     }
