@@ -14,9 +14,8 @@ add_library(sortlib
         src/run.c
         src/merge.c
         )
-target_include_directories(sortlib PUBLIC inc)
 
-add_executable(bigsort bigsort.c)
+add_executable(bigsort src/bigsort.c)
 target_link_libraries(bigsort sortlib)
 
 # -----------------------------------------------------------------------------
