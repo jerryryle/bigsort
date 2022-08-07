@@ -1,6 +1,5 @@
 #include "merge.h"
 #include <assert.h>
-#include <stdlib.h>
 #include <unistd.h>
 
 static bool write_uint32(int output_fd, uint32_t val)
@@ -21,6 +20,8 @@ enum read_uint32_result {
 
 static enum read_uint32_result read_uint32(int input_fd, uint32_t *val)
 {
+    assert(val);
+
     ssize_t num_read = read(input_fd, val, sizeof(*val));
     if (num_read == sizeof(*val)) {
         return READ_SUCCESS;
@@ -83,36 +84,35 @@ bool merge_files(int input1_fd, int input2_fd, int output_fd) {
     for (;;) {
         if (val1 <= val2) {
             if (!write_uint32(output_fd, val1)) {
-                return false;
+                break;
             }
             read_result = read_uint32(input1_fd, &val1);
             if (read_result == READ_ERROR) {
-                return false;
+                break;
             }
             if (read_result == READ_EOF) {
                 // If we've reached the end of input1, then just write out the rest of input2
                 if (!write_uint32(output_fd, val2)) {
-                    return false;
+                    break;
                 }
                 return copy_file(input2_fd, output_fd);
             }
         } else {
             if (!write_uint32(output_fd, val2)) {
-                return false;
+                break;
             }
             read_result = read_uint32(input2_fd, &val2);
             if (read_result == READ_ERROR) {
-                return false;
+                break;
             }
             if (read_result == READ_EOF) {
                 // If we've reached the end of input2, then just write out the rest of input1
                 if (!write_uint32(output_fd, val1)) {
-                    return false;
+                    break;
                 }
                 return copy_file(input1_fd, output_fd);
             }
         }
     }
-    // Should be unreachable.
     return false;
 }
