@@ -10,7 +10,7 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-add_library(sortlib src/runs.c)
+add_library(sortlib src/run.c)
 target_include_directories(sortlib PUBLIC inc)
 
 add_executable(bigsort bigsort.c)

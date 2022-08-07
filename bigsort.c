@@ -3,7 +3,8 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include "runs.h"
+#include <sys/stat.h>
+#include "run.h"
 
 static size_t const DEFAULT_RUN_SIZE = (size_t)1 * (1<<20); // (1<<20) is 1MB
 
@@ -69,6 +70,16 @@ void get_options(int argc, char * const argv[], struct options *opts) {
     }
 }
 
+bool check_file_size(FILE *input_file) {
+    struct stat file_status;
+    fstat(fileno(input_file), &file_status);
+    if ((file_status.st_size & 0x03) == 0) {
+        return true;
+    }
+    return false;
+}
+
+
 int main(int argc, char *argv[]) {
     struct options opts;
     get_options(argc, argv, &opts);
@@ -99,7 +110,7 @@ int main(int argc, char *argv[]) {
         printf("ERROR: unable to open input file.\n");
         return -1;
     }
-    if (!runs_check_file_size(ifptr)) {
+    if (!check_file_size(ifptr)) {
         printf("ERROR: input file's size must be a multiple of 4.\n");
         fclose(ifptr);
         return -1;
