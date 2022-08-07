@@ -16,10 +16,12 @@ This project has been built with Jetbrains' CLion IDE. It can also be built and 
 `cmake --build cmake-build-debug --target all -j 12`
 
 ### Test
-`(cd cmake-build-debug; ctest --extra-verbose --output-on-failure)`
-
-### Generate a 1GB test file named test.bin
-`./bigfile test.bin 1GB`
+1. Generate a 1MB test file named test.bin
+   - `./bigfile test.py 1MB`
+2. Sort it using a run size of 1KB
+   - `./cmake-build-debug/bigsort --runsize=100000 test.in test.out`
+3. Verify that the resulting file is sorted
+   - `./check_sorted.py test.out`
 
 ## Assumptions
 - I'm going to keep this simple for now and assume large files of fixed-sized records. Specifically, I'll sort large binary files filled with 32-bit, unsigned integers that are aligned to 32-bit boundaries. There's no particular reason for choosing unsigned other than they're slightly easier for me to visually interpret from a hex dump, should I need to.
