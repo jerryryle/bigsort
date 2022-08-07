@@ -13,8 +13,12 @@ struct run_context {
 static int compare_uint32_t(void const *left, void const *right) {
     uint32_t left_int = *(uint32_t const *)left;
     uint32_t right_int = *(uint32_t const *)right;
-    if (left_int < right_int) {return -1;}
-    if (left_int > right_int) {return  1;}
+    if (left_int < right_int) {
+        return -1;
+    }
+    if (left_int > right_int) {
+        return  1;
+    }
     return 0;
 }
 
@@ -29,7 +33,7 @@ struct run_context *run_new(int input_fd, size_t run_size) {
 
     run->input_fd = input_fd;
     run->size = run_size;
-    run->data = (uint32_t *)malloc(run_size/sizeof(uint32_t));
+    run->data = (uint32_t *)malloc(run_size / sizeof(uint32_t));
     if (!run->data) {
         free(run);
         return NULL;
@@ -69,12 +73,9 @@ bool run_create_run(struct run_context *run, int output_fd) {
     return true;
 }
 
-bool run_delete(struct run_context* run) {
-    if (run && run->data) {
+void run_delete(struct run_context* run) {
+    if (run) {
         free(run->data);
-        run->data = NULL;
         free(run);
-        return true;
     }
-    return false;
 }

@@ -148,10 +148,7 @@ size_t create_runs(int input_fd, char const *output_filename, size_t run_size) {
 
     size_t runs = create_runs_with_context(run, output_filename);
 
-    if (!run_delete(run)) {
-        fprintf(stderr, "ERROR: Failed to delete run context\n");
-        return 0;
-    }
+    run_delete(run);
     return runs;
 }
 
