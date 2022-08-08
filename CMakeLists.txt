@@ -11,11 +11,14 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 add_library(sortlib
+        src/bigsort.c
+        src/round.c
         src/run.c
         src/merge.c
         )
+target_include_directories(sortlib PUBLIC src)
 
-add_executable(bigsort src/bigsort.c)
+add_executable(bigsort src/main.c)
 target_link_libraries(bigsort sortlib)
 
 # -----------------------------------------------------------------------------
@@ -36,6 +39,8 @@ FetchContent_MakeAvailable(googletest)
 
 enable_testing()
 
-add_executable(sortlib_unittest tests/sortlib_unittest.cpp)
+add_executable(sortlib_unittest
+        tests/round_test.cpp
+        )
 target_link_libraries(sortlib_unittest PUBLIC gtest_main sortlib)
 add_test(NAME sortlib_unittest COMMAND sortlib_unittest)

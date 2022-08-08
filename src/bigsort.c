@@ -1,91 +1,15 @@
+#include "bigsort.h"
+
 #include <errno.h>
-#include <fcntl.h>
-#include <getopt.h>
 #include <limits.h>
 #include <stdbool.h>
-#include <stddef.h>
-#include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
 #include <sys/stat.h>
 #include "merge.h"
 #include "run.h"
 
-static size_t const DEFAULT_RUN_SIZE = (size_t)1 * (1<<20); // (1<<20) is 1MB
-
-struct options {
-    bool print_help;
-    char const *input_filename;
-    char const *output_filename;
-    size_t run_size;
-};
-
-void print_usage() {
-    printf(
-            "usage: bigsort [-h] [-r runsize] infile outfile\n" \
-            "\n" \
-            "Sort a large file filled with unsigned, 32-bit integers\n" \
-            "\n" \
-            "positional arguments:\n" \
-            "  infile                  input file name\n" \
-            "  outfile                 output file name\n" \
-            "\n" \
-            "optional arguments:\n" \
-            "  -h, --help              show this help message and exit\n" \
-            "  -r, --runsize=SIZE      size of initial runs\n"
-            "                          (which also determines memory usage)\n");
-}
-
-size_t round_up_to_multiple_of_4(size_t num) {
-    // This rounds up by adding 3 and then clearing the lowest two bits, ensuring a multiple of 4
-    return (num + 3) & ~0x3;
-}
-
-void get_options(int argc, char * const argv[], struct options *opts) {
-    static struct option const long_options[] = {
-        {"help", no_argument, 0, 'h'},
-        {"runsize", required_argument, 0, 'r'},
-        {0, 0, 0, 0}
-    };
-
-    // Set default options
-    opts->print_help = false;
-    opts->input_filename = NULL;
-    opts->output_filename = NULL;
-    opts->run_size = DEFAULT_RUN_SIZE;
-
-    // Loop over arguments, looking for any option flags. These must come before any positional arguments.
-    for (;;) {
-        int opt = getopt_long(argc, argv, "hr:", long_options, NULL);
-        if (opt == -1) {
-            break;
-        }
-        switch (opt) {
-        case 'h':
-            opts->print_help = true;
-            break;
-        case 'r':
-            opts->run_size = (size_t)strtoul(optarg, NULL, 0);
-            break;
-        default:
-            break;
-        }
-    }
-    // First positional argument is the input filename
-    if (optind < argc) {
-        opts->input_filename = argv[optind];
-        optind++;
-    }
-    // Second positional argument is the output filename
-    if (optind < argc) {
-        opts->output_filename = argv[optind];
-        optind++;
-    }
-    // Ensure that the run size is a multiple of 4
-    opts->run_size = round_up_to_multiple_of_4(opts->run_size);
-}
-
-bool check_file_size(FILE *input_file) {
+static bool check_file_size(FILE *input_file) {
     struct stat file_status = {0};
     fstat(fileno(input_file), &file_status);
     // Check that the file size is a multiple of 4. This bit magic checks that the lowest two bits are zero. If they
@@ -96,7 +20,7 @@ bool check_file_size(FILE *input_file) {
 /*
  * This creates the initial sorted runs given an acquired run context.
  */
-size_t create_runs_with_context(struct run_context *run, char const *output_filename) {
+static size_t create_runs_with_context(struct run_context *run, char const *output_filename) {
     size_t num_runs = 0;
     while (!run_finished(run)) {
         // Format the next run filename using the output filename as a base. We'll use the format:
@@ -130,10 +54,6 @@ size_t create_runs_with_context(struct run_context *run, char const *output_file
     return num_runs;
 }
 
-/*
- * This creates the initial sorted runs. It acquires needed resources, calls another function to create the runs, and
- * then ensures that the resources are released.
- */
 size_t create_runs(FILE *input_file, char const *output_filename, size_t run_size) {
     if (!check_file_size(input_file)) {
         fprintf(stderr, "ERROR: input file's size must be a multiple of 4.\n");
@@ -156,7 +76,7 @@ size_t create_runs(FILE *input_file, char const *output_filename, size_t run_siz
  * This "merges" a single sorted run. It does so by moving the current generation run file to the next generation. This
  * is simply a rename operation that updates the filename to reflect the new generation.
  */
-bool merge_single_run(
+static bool merge_single_run(
         char const *output_filename,
         size_t run_generation, size_t run_number,
         size_t new_generation, size_t new_run_number) {
@@ -186,7 +106,7 @@ bool merge_single_run(
  * This merges a pair of sorted runs. It does so by acquiring all input/output file resources and then passing those to
  * a library function that performs the actual merge.
  */
-bool merge_two_runs(
+static bool merge_two_runs(
         char const *output_filename,
         size_t run_generation, size_t run_number,
         size_t new_generation, size_t new_run_number) {
@@ -240,12 +160,6 @@ bool merge_two_runs(
     return success;
 }
 
-/*
- * This merges the initial, sorted runs down into a single, fully sorted, fully merged file.
- * It does so by first merging each pair of first-generation runs into larger, next-generation runs. It then proceeds
- * to merge pairs of next-generation runs into even larger next-next-generation runs. This continues until only one
- * large, final-generation runs remains. This is then renamed to the final output file.
- */
 bool merge_runs(char const *output_filename, size_t num_runs) {
     size_t generation = 0; // Generation counter
     size_t num_runs_in_generation = num_runs;
@@ -291,54 +205,4 @@ bool merge_runs(char const *output_filename, size_t num_runs) {
 
     // We've now merged down to a single run. Just rename the run file to the final output and return.
     return merge_single_run(output_filename, generation, 0, 0, 0);
-}
-
-int main(int argc, char *argv[]) {
-    struct options opts = {0};
-    get_options(argc, argv, &opts);
-    if (opts.print_help) {
-        print_usage();
-        return EXIT_SUCCESS;
-    }
-    if (!opts.input_filename) {
-        fprintf(stderr, "ERROR: Missing input filename\n");
-        print_usage();
-        return EXIT_FAILURE;
-    }
-    if (!opts.output_filename) {
-        fprintf(stderr, "ERROR: Missing output filename\n");
-        print_usage();
-        return EXIT_FAILURE;
-    }
-
-    printf(
-            "Proceeding with:\n" \
-            "  input file: %s\n" \
-            "  output file: %s\n" \
-            "  run size: %lu\n",
-            opts.input_filename, opts.output_filename, opts.run_size);
-
-    // Open the input file to sort
-    FILE *input_file = fopen(opts.input_filename, "rb");
-    if (!input_file) {
-        fprintf(stderr, "ERROR: unable to open input file: %s\n", strerror(errno));
-        return EXIT_FAILURE;
-    }
-
-    // Create the initial runs
-    size_t num_runs = create_runs(input_file, opts.output_filename, opts.run_size);
-    fclose(input_file);
-
-    if (!num_runs) {
-        fprintf(stderr, "ERROR: unable to create runs.\n");
-        return EXIT_FAILURE;
-    }
-
-    // Merge the initial runs into the final output file
-    if (!merge_runs(opts.output_filename, num_runs)) {
-        fprintf(stderr, "ERROR: unable to merge runs.\n");
-        return EXIT_FAILURE;
-    }
-    printf("Completed successfully!\n");
-    return EXIT_SUCCESS;
 }
