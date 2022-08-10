@@ -4,11 +4,11 @@ import struct
 
 def find_first_unsorted_value(filename):
     """
-    Given a filename, returns the first unsorted integer value encountered as (integer offset, value) or
+    Given a filename, returns the first unsorted integer value encountered as (integer offset, value, previous value) or
     an empty tuple if file is fully sorted.
     """
     with open(filename, 'rb') as file:
-        offset = last_value = 0
+        offset = previous_value = 0
         byte_value = 0
         while True:
             byte_value = file.read(4)
@@ -17,9 +17,9 @@ def find_first_unsorted_value(filename):
             current_value = struct.unpack('=L', byte_value)[0]
             # The values should always be increasing. If the current value is smaller than the last value, the file
             # is not sorted.
-            if current_value < last_value:
-                return offset, current_value, last_value
-            last_value = current_value
+            if current_value < previous_value:
+                return offset, current_value, previous_value
+            previous_value = current_value
             offset += 1
 
     return ()
