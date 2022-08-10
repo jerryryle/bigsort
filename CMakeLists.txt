@@ -39,8 +39,18 @@ FetchContent_MakeAvailable(googletest)
 
 enable_testing()
 
-add_executable(sortlib_unittest
+add_executable(unit_tests
         tests/round_test.cpp
         )
-target_link_libraries(sortlib_unittest PUBLIC gtest_main sortlib)
-add_test(NAME sortlib_unittest COMMAND sortlib_unittest)
+target_link_libraries(unit_tests PUBLIC gtest_main sortlib)
+add_test(
+        NAME unit_tests
+        COMMAND unit_tests)
+
+find_package(Python COMPONENTS Interpreter REQUIRED)
+
+add_test(
+        NAME integration_tests
+        COMMAND ${Python_EXECUTABLE} -m pytest ${CMAKE_CURRENT_SOURCE_DIR}/tests_integration
+)
+set_property(TEST integration_tests PROPERTY ENVIRONMENT "BIGSORT_PATH=$<TARGET_FILE:bigsort>")
