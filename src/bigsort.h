@@ -11,7 +11,7 @@
  *
  * Returns: The number of runs created (will always be at least 1 if creation succeeds), or zero if an error occurs.
  */
-size_t create_runs(FILE *input_file, char const *output_filename, size_t run_size);
+size_t create_runs(FILE *input_file, char const *output_filename, void *run_data, size_t run_data_size);
 
 /*
  * This merges the initial, sorted runs down into a single, fully sorted, fully merged file.

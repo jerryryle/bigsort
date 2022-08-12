@@ -119,11 +119,21 @@ int main(int argc, char *argv[]) {
         return EXIT_FAILURE;
     }
 
+    // Allocate working memory based on the requested run size.
+    size_t const working_memory_size = opts.run_size;
+    void *working_memory = malloc(working_memory_size);
+    if (!working_memory) {
+        fclose(input_file);
+        fprintf(stderr, "ERROR: unable to allocate working memory: %s\n", strerror(errno));
+        return EXIT_FAILURE;
+    }
+
     // Create the initial runs
-    size_t num_runs = create_runs(input_file, opts.output_filename, opts.run_size);
+    size_t num_runs = create_runs(input_file, opts.output_filename, working_memory, working_memory_size);
     fclose(input_file);
 
     if (!num_runs) {
+        free(working_memory);
         fprintf(stderr, "ERROR: unable to create runs.\n");
         return EXIT_FAILURE;
     }
@@ -131,6 +141,7 @@ int main(int argc, char *argv[]) {
     // Merge the initial runs into the final output file
     size_t num_generations = merge_runs(opts.output_filename, num_runs);
     if (!num_generations) {
+        free(working_memory);
         fprintf(stderr, "ERROR: unable to merge runs.\n");
         return EXIT_FAILURE;
     }

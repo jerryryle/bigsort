@@ -54,13 +54,13 @@ static size_t create_runs_with_context(struct run_context *run, char const *outp
     return num_runs;
 }
 
-size_t create_runs(FILE *input_file, char const *output_filename, size_t run_size) {
+size_t create_runs(FILE *input_file, char const *output_filename, void *run_data, size_t run_data_size) {
     if (!check_file_size(input_file)) {
         fprintf(stderr, "ERROR: input file's size must be a multiple of 4.\n");
         return 0;
     }
 
-    struct run_context *run = run_new(input_file, run_size/sizeof(uint32_t));
+    struct run_context *run = run_new(input_file, run_data, run_data_size);
     if (!run) {
         fprintf(stderr, "ERROR: Failed to create run context\n");
         return 0;

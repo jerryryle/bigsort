@@ -10,20 +10,15 @@ struct run_context {
 };
 
 static int compare_uint32_t(void const *left, void const *right) {
-    uint32_t left_int = *(uint32_t const *)left;
-    uint32_t right_int = *(uint32_t const *)right;
-    if (left_int < right_int) {
-        return -1;
-    }
-    if (left_int > right_int) {
-        return  1;
-    }
-    return 0;
+    int64_t left_int = *(uint32_t const *)left;
+    int64_t right_int = *(uint32_t const *)right;
+    return (int)(left_int - right_int);
 }
 
-struct run_context *run_new(FILE *input_file, size_t num_elements) {
+struct run_context *run_new(FILE *input_file, void *run_data, size_t run_data_size) {
     assert(input_file);
-    assert(num_elements > 0);
+    assert(run_data);
+    assert(run_data_size > sizeof(uint32_t));
 
     struct run_context *run = (struct run_context *)malloc(sizeof(struct run_context));
     if (!run) {
@@ -31,8 +26,8 @@ struct run_context *run_new(FILE *input_file, size_t num_elements) {
     }
 
     run->input_file = input_file;
-    run->nelements = num_elements;
-    run->data = (uint32_t *)malloc(run->nelements * sizeof(uint32_t));
+    run->nelements = run_data_size/sizeof(uint32_t);
+    run->data = (uint32_t *)run_data;
     if (!run->data) {
         free(run);
         return NULL;
@@ -73,8 +68,5 @@ bool run_create_run(struct run_context *run, FILE *output_file) {
 }
 
 void run_delete(struct run_context* run) {
-    if (run) {
-        free(run->data);
-        free(run);
-    }
+    free(run);
 }

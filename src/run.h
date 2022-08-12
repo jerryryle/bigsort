@@ -9,7 +9,7 @@
 
 struct run_context;
 
-struct run_context *run_new(FILE *input_file, size_t run_size);
+struct run_context *run_new(FILE *input_file, void *run_data, size_t run_data_size);
 bool run_finished(struct run_context *run);
 bool run_create_run(struct run_context *run, FILE *output_file);
 void run_delete(struct run_context *run);
