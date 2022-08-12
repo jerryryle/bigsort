@@ -13,6 +13,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 add_library(sortlib
         src/bigsort.c
         src/merge.c
+        src/min_heap.c
         src/round.c
         src/run.c
         )
@@ -40,6 +41,7 @@ FetchContent_MakeAvailable(googletest)
 enable_testing()
 
 add_executable(unit_tests
+        tests/min_heap_test.cpp
         tests/round_test.cpp
         )
 target_link_libraries(unit_tests PUBLIC gtest_main sortlib)
