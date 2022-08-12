@@ -12,9 +12,9 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 add_library(sortlib
         src/bigsort.c
+        src/merge.c
         src/round.c
         src/run.c
-        src/merge.c
         )
 target_include_directories(sortlib PUBLIC src)
 
