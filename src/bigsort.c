@@ -160,7 +160,7 @@ static bool merge_two_runs(
     return success;
 }
 
-bool merge_runs(char const *output_filename, size_t num_runs) {
+size_t merge_runs(char const *output_filename, size_t num_runs) {
     size_t generation = 0; // Generation counter
     size_t num_runs_in_generation = num_runs;
 
@@ -179,7 +179,7 @@ bool merge_runs(char const *output_filename, size_t num_runs) {
                         output_filename,
                         generation, input_current_run,
                         output_generation, num_runs_in_output_generation)) {
-                    return false;
+                    return 0;
                 }
                 // Update the run counter to reflect that we've merged one run
                 input_current_run++;
@@ -189,7 +189,7 @@ bool merge_runs(char const *output_filename, size_t num_runs) {
                         output_filename,
                         generation, input_current_run,
                         output_generation, num_runs_in_output_generation)) {
-                    return false;
+                    return 0;
                 }
                 // Update the run counter to reflect that we've merged two runs
                 input_current_run += 2;
@@ -203,6 +203,11 @@ bool merge_runs(char const *output_filename, size_t num_runs) {
         num_runs_in_generation = num_runs_in_output_generation;
     }
 
-    // We've now merged down to a single run. Just rename the run file to the final output and return.
-    return merge_single_run(output_filename, generation, 0, 0, 0);
+    // We've now merged down to a single run. Just rename the run file to the final output.
+    if(!merge_single_run(output_filename, generation, 0, 0, 0)) {
+        return 0;
+    }
+
+    // Return the number of generations that the merge took.
+    return generation;
 }

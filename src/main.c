@@ -15,11 +15,12 @@ struct options {
     char const *input_filename;
     char const *output_filename;
     size_t run_size;
+    bool quiet;
 };
 
 void print_usage() {
     printf(
-            "usage: bigsort [-h] [-r runsize] infile outfile\n" \
+            "usage: bigsort [-h] [-q] [-r runsize] infile outfile\n" \
             "\n" \
             "Sort a large file filled with unsigned, 32-bit integers\n" \
             "\n" \
@@ -29,14 +30,17 @@ void print_usage() {
             "\n" \
             "optional arguments:\n" \
             "  -h, --help              show this help message and exit\n" \
-            "  -r, --runsize=SIZE      size of initial runs\n"
-            "                          (which also determines memory usage)\n");
+            "  -q, --quiet             Do not display progress/stats/completion output\n" \
+            "  -r, --runsize=SIZE      size of initial runs\n" \
+            "                          (which also determines memory usage)\n" \
+            );
 }
 
 void get_options(int argc, char * const argv[], struct options *opts) {
     static struct option const long_options[] = {
             {"help", no_argument, 0, 'h'},
             {"runsize", required_argument, 0, 'r'},
+            {"quiet", required_argument, 0, 'q'},
             {0, 0, 0, 0}
     };
 
@@ -45,16 +49,20 @@ void get_options(int argc, char * const argv[], struct options *opts) {
     opts->input_filename = NULL;
     opts->output_filename = NULL;
     opts->run_size = DEFAULT_RUN_SIZE;
+    opts->quiet = false;
 
     // Loop over arguments, looking for any option flags. These must come before any positional arguments.
     for (;;) {
-        int opt = getopt_long(argc, argv, "hr:", long_options, NULL);
+        int opt = getopt_long(argc, argv, "hqr:", long_options, NULL);
         if (opt == -1) {
             break;
         }
         switch (opt) {
             case 'h':
                 opts->print_help = true;
+                break;
+            case 'q':
+                opts->quiet = true;
                 break;
             case 'r':
                 opts->run_size = (size_t)strtoul(optarg, NULL, 0);
@@ -95,12 +103,14 @@ int main(int argc, char *argv[]) {
         return EXIT_FAILURE;
     }
 
-    printf(
-            "Proceeding with:\n" \
-            "  input file: %s\n" \
-            "  output file: %s\n" \
-            "  run size: %lu\n",
-            opts.input_filename, opts.output_filename, opts.run_size);
+    if (!opts.quiet) {
+        printf(
+                "--[ Parameters ]-------------------------------\n" \
+                "  input file: %s\n" \
+                " output file: %s\n" \
+                "    run size: %lu\n",
+                opts.input_filename, opts.output_filename, opts.run_size);
+    }
 
     // Open the input file to sort
     FILE *input_file = fopen(opts.input_filename, "rb");
@@ -119,10 +129,17 @@ int main(int argc, char *argv[]) {
     }
 
     // Merge the initial runs into the final output file
-    if (!merge_runs(opts.output_filename, num_runs)) {
+    size_t num_generations = merge_runs(opts.output_filename, num_runs);
+    if (!num_generations) {
         fprintf(stderr, "ERROR: unable to merge runs.\n");
         return EXIT_FAILURE;
     }
-    printf("Completed successfully!\n");
+    if (!opts.quiet) {
+        printf("--[ Stats ]------------------------------------\n");
+        printf("       initial runs: %lu\n", num_runs);
+        printf("  merge generations: %lu\n", num_generations);
+        printf("-----------------------------------------------\n");
+        printf("Completed successfully!\n");
+    }
     return EXIT_SUCCESS;
 }
