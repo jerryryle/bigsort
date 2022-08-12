@@ -52,6 +52,12 @@ size_t min_heap_count(struct min_heap const *heap)
     return heap->element_count;
 }
 
+bool min_heap_is_full(struct min_heap const *heap)
+{
+    assert(heap);
+    return heap->element_count >= heap->element_capacity;
+}
+
 bool min_heap_add(struct min_heap *heap, uint32_t key, FILE *value)
 {
     assert(heap);

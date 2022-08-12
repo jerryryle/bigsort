@@ -40,10 +40,14 @@ TEST_F(MinHeapTest, CannotCreateHeapWithInsufficientDataSize) {
 }
 
 TEST_F(MinHeapTest, CannotAddMoreElementsThanHeapCapacity) {
+
+    EXPECT_FALSE(min_heap_is_full(heap));
+
     size_t capacity = min_heap_capacity(heap);
     for (size_t i = 0; i < capacity; i++) {
         EXPECT_TRUE(min_heap_add(heap, (uint32_t)i, nullptr));
     }
+    EXPECT_TRUE(min_heap_is_full(heap));
     EXPECT_FALSE(min_heap_add(heap, (uint32_t)capacity, nullptr));
 }
 
