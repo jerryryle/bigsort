@@ -91,22 +91,24 @@ bool min_heap_pop(struct min_heap *heap, uint32_t *key, FILE **value)
     assert(heap);
     assert(key);
     assert(value);
-    if (heap->element_count > 0) {
-        // Retrieve element's value
-        *key = heap->data[0].key;
-        *value = heap->data[0].value;
 
-        // If there's more than one element, re-heapify. Otherwise, just decrement the count and return.
-        if (heap->element_count > 1) {
-            // Move the last element to the top
-            heap->data[0] = heap->data[heap->element_count-1];
-            // re-heapify
-            heapify(heap);
-        }
-        heap->element_count--;
-        return true;
+    if (heap->element_count <= 0) {
+        return false;
     }
-    return false;
+
+    // Retrieve element's value
+    *key = heap->data[0].key;
+    *value = heap->data[0].value;
+
+    // If there's more than one element, re-heapify. Otherwise, just decrement the count and return.
+    if (heap->element_count > 1) {
+        // Move the last element to the top
+        heap->data[0] = heap->data[heap->element_count-1];
+        // re-heapify
+        heapify(heap);
+    }
+    heap->element_count--;
+    return true;
 }
 
 void min_heap_clear(struct min_heap *heap)
