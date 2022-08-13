@@ -112,74 +112,121 @@ TEST_F(MinHeapTest, HeapIsMaintainedAsElementsAreAddedAndRemoved) {
     // The heap has 0 elements
     EXPECT_EQ(min_heap_count(heap), 0);
 
-    // 43 is added to the heap and it becomes the top of heap since it's the only element.
+    // 100 is added to the heap. It becomes the top of heap since it's the only element.
     /* Heap:
-             43
+             100
     */
-    EXPECT_TRUE(min_heap_add(heap, 43, (FILE *)0x00000001));
-    // 42 is added to the end of the heap and, because it is smaller than the 43 at the top, it is swapped with 43.
+    EXPECT_TRUE(min_heap_add(heap, 100, (FILE *)0x00000001));
+
+    // 50 is added to the end of the heap and, because it is smaller than the 100 at the top, it is swapped with 100.
     /* Heap:
-             43               42
-            /        ->      /
-          42               43
+            100                50
+            /         ->      /
+          50                100
     */
-    EXPECT_TRUE(min_heap_add(heap, 42, (FILE *)0x00000002));
-    // 41 is added to the end of the heap and, because it is smaller than the 42 above it, it is swapped with 42.
+    EXPECT_TRUE(min_heap_add(heap, 50, (FILE *)0x00000002));
+
+    // 200 is added to the end of the heap and, because it is larger than the 50 above it, it stays at the end.
     /* Heap:
-             42             41
-            /  \     ->    /  \
-          43    41       43    42
+             50              50
+            /   \     ->    /   \
+          100   200       100   200
     */
-    EXPECT_TRUE(min_heap_add(heap, 41, (FILE *)0x00000003));
-    // 0 is added to the end of the heap and, it moves upwards to become the top of the heap
+    EXPECT_TRUE(min_heap_add(heap, 200, (FILE *)0x00000003));
+
+    // 0 is added to the end of the heap and it moves upwards to become the top of the heap.
     /* Heap:
-             42             41             0
-            /  \     ->    /  \     ->    /  \
-          43    41        0   42        41    42
-         /              /              /
-        0             43             43
+             50              50               0
+            /   \     ->    /   \     ->    /   \
+          100   200        0    200       50    200
+         /               /              /
+        0              100            100
     */
     EXPECT_TRUE(min_heap_add(heap, 0, (FILE *)0x00000004));
 
-    // The heap now has 4 elements
-    EXPECT_EQ(min_heap_count(heap), 4);
-
-    // 0 is popped and 43 is temporarily moves to the top and then pushed downwards.
+    // 150 is added to the end of the heap and, because it is larger than the 50 above it, it stays at the end.
     /* Heap:
-             0              43             41
-            /  \     ->    /  \     ->    /  \
-          41    42       41    42       43    42
-         /
-        43
+              0               0
+            /   \     ->    /   \
+          50    200       50    200
+         /   \           /   \
+       100   150       100   150
+    */
+    EXPECT_TRUE(min_heap_add(heap, 150, (FILE *)0x00000005));
+
+    // 160 is added to the end of the heap and, because it is smaller than the 200 above it, is swapped with 200.
+    /* Heap:
+                0                    0
+            /       \     ->     /       \
+          50        200        50        160
+         /   \      /         /   \      /
+       100   150  160       100   150  200
+    */
+    EXPECT_TRUE(min_heap_add(heap, 160, (FILE *)0x00000006));
+
+    // The heap now has 6 elements
+    EXPECT_EQ(min_heap_count(heap), 6);
+
+    // 0 is popped and 200, which is the end of the heap, moves to the top and then downwards.
+    /* Heap:
+                0                   200                  50                   50
+            /       \     ->     /       \     ->     /       \     ->     /       \
+          50        160        50        160        200       160        100       160
+         /   \      /         /   \                /   \                /   \
+       100   150  200       100   150            100   150            200   150
     */
     EXPECT_TRUE(min_heap_pop(heap, &key, &value));
     EXPECT_EQ(key, 0);
     EXPECT_EQ(value, (FILE *)0x00000004);
 
-    // 41 is popped and 42 moves to the top and stays there.
+    // 50 is popped and 150, which is the end of the heap, moves to the top and then downwards.
     /* Heap:
-             41             42
-            /  \     ->    /
-          43    42       43
+               50                   150                  100
+            /       \     ->     /       \     ->     /       \
+          100       160        100       160        150       160
+         /   \                /                    /
+       200   150            200                  200
     */
     EXPECT_TRUE(min_heap_pop(heap, &key, &value));
-    EXPECT_EQ(key, 41);
-    EXPECT_EQ(value, (FILE *)0x00000003);
-
-    // 42 is popped from the heap and 43 moves to the top.
-    /* Heap:
-             42             43
-            /        ->
-          43
-    */
-    EXPECT_TRUE(min_heap_pop(heap, &key, &value));
-    EXPECT_EQ(key, 42);
+    EXPECT_EQ(key, 50);
     EXPECT_EQ(value, (FILE *)0x00000002);
 
-    // 43 is popped from the heap and the heap is now empty
+    // 100 is popped and 200, which is the end of the heap, moves to the top and then downwards.
+    /* Heap:
+               100                  200                  150
+            /       \     ->     /       \     ->     /       \
+          150       160        150       160        200       160
+         /
+       200
+    */
     EXPECT_TRUE(min_heap_pop(heap, &key, &value));
-    EXPECT_EQ(key, 43);
+    EXPECT_EQ(key, 100);
     EXPECT_EQ(value, (FILE *)0x00000001);
+
+    // 150 is popped and 160, which is the end of the heap, moves to the top and stays there.
+    /* Heap:
+               150                  160
+            /       \     ->     /
+          200       160        200
+    */
+    EXPECT_TRUE(min_heap_pop(heap, &key, &value));
+    EXPECT_EQ(key, 150);
+    EXPECT_EQ(value, (FILE *)0x00000005);
+
+    // 160 is popped and 200, which is the end of the heap, moves to the top and stays there.
+    /* Heap:
+               160                  200
+            /             ->
+          200
+    */
+    EXPECT_TRUE(min_heap_pop(heap, &key, &value));
+    EXPECT_EQ(key, 160);
+    EXPECT_EQ(value, (FILE *)0x00000006);
+
+    // 200 is popped from the heap and the heap is now empty
+    EXPECT_TRUE(min_heap_pop(heap, &key, &value));
+    EXPECT_EQ(key, 200);
+    EXPECT_EQ(value, (FILE *)0x00000003);
 
     // The heap is now empty
     EXPECT_EQ(min_heap_count(heap), 0);

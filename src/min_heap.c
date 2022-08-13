@@ -99,15 +99,12 @@ bool min_heap_pop(struct min_heap *heap, uint32_t *key, FILE **value)
     // Retrieve element's value
     *key = heap->data[0].key;
     *value = heap->data[0].value;
-
-    // If there's more than one element, re-heapify. Otherwise, just decrement the count and return.
-    if (heap->element_count > 1) {
-        // Move the last element to the top
-        heap->data[0] = heap->data[heap->element_count-1];
-        // re-heapify
-        heapify(heap);
-    }
+    // Move the last element to the top and decrement the number of elements.
+    heap->data[0] = heap->data[heap->element_count-1];
     heap->element_count--;
+    // re-heapify
+    heapify(heap);
+
     return true;
 }
 
@@ -131,13 +128,11 @@ static void heapify(struct min_heap *heap)
 
     // Start with the top of the heap
     size_t current_element = 0;
-    // Setting this to the last element just ensures that we enter the loop below.
-    size_t min_element = heap->element_count - 1;
 
     // Keep moving downwards until the current element is the minimum element.
-    while (current_element != min_element) {
+    for (;;) {
         // Begin by assuming the current is the min element.
-        min_element = current_element;
+        size_t min_element = current_element;
 
         // Calculate the array indices of the left and right elements
         size_t const left_element = LEFT_CHILD_ELEMENT(current_element);
@@ -154,14 +149,17 @@ static void heapify(struct min_heap *heap)
             min_element = right_element;
         }
 
-        // If the current element is not the smallest element, swap it with the smallest and proceed downwards.
-        if (min_element != current_element) {
-            swap_elements(heap, min_element, current_element);
-
-            // The min element has been swapped with the current element. Update current_element such that we perform
-            // the next iteration starting at the position of the old min_element.
-            current_element = min_element;
+        if (min_element == current_element) {
+            // If the current element is the smallest element, we're done.
+            break;
         }
+
+        // If the current element is not the smallest element, swap it with the smallest and proceed downwards.
+        swap_elements(heap, min_element, current_element);
+
+        // The min element has been swapped with the current element. Update current_element such that we perform
+        // the next iteration starting at the position of the old min_element.
+        current_element = min_element;
     }
 }
 
