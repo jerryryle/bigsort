@@ -9,18 +9,20 @@
 #include "round.h"
 
 static size_t const DEFAULT_RUN_SIZE = (size_t)1 * (1<<20); // (1<<20) is 1MB
+static size_t const DEFAULT_MAX_FILES = (size_t)1000;
 
 struct options {
     bool print_help;
     char const *input_filename;
     char const *output_filename;
     size_t run_size;
+    size_t max_files;
     bool quiet;
 };
 
 void print_usage() {
     printf(
-            "usage: bigsort [-h] [-q] [-r runsize] infile outfile\n" \
+            "usage: bigsort [-h] [-q] [-r runsize] [-max maxfiles] infile outfile\n" \
             "\n" \
             "Sort a large file filled with unsigned, 32-bit integers\n" \
             "\n" \
@@ -29,10 +31,22 @@ void print_usage() {
             "  outfile                 output file name\n" \
             "\n" \
             "optional arguments:\n" \
-            "  -h, --help              show this help message and exit\n" \
-            "  -q, --quiet             Do not display progress/stats/completion output\n" \
-            "  -r, --runsize=SIZE      size of initial runs\n" \
-            "                          (which also determines memory usage)\n" \
+            "  -h, --help               Show this help message and exit\n" \
+            "  -q, --quiet              Do not display progress/stats/completion output\n" \
+            "  -r, --runsize=SIZE       Size of initial runs. This drives memory usage since\n" \
+            "                             a buffer of size 'SIZE' will be allocated for\n" \
+            "                             reading and sorting file data.\n" \
+            "                             Defaults to 1MB if not specified.\n" \
+            "  -m, --maxfiles=NUM       Maximum number of open files for merge phase. This\n" \
+            "                             also drives memory usage since 'NUM' buffered file\n" \
+            "                             handles will be opened simultaneously. This flag\n" \
+            "                             specifies a maximum. The actual number of open\n" \
+            "                             files will be determined by the number of file\n" \
+            "                             structures that can fit in the 'SIZE' memory\n" \
+            "                             allocated for the initial run processing.\n" \
+            "                             Defaults to 1000 if not specified. Specify 0 to\n" \
+            "                             open as many files as possible with 'SIZE' memory.\n" \
+            "                             (too large of a value may fail due to OS limits)\n" \
             );
 }
 
@@ -49,6 +63,7 @@ void get_options(int argc, char * const argv[], struct options *opts) {
     opts->input_filename = NULL;
     opts->output_filename = NULL;
     opts->run_size = DEFAULT_RUN_SIZE;
+    opts->max_files = DEFAULT_MAX_FILES;
     opts->quiet = false;
 
     // Loop over arguments, looking for any option flags. These must come before any positional arguments.
@@ -139,7 +154,7 @@ int main(int argc, char *argv[]) {
     }
 
     // Merge the initial runs into the final output file
-    size_t num_generations = merge_runs(opts.output_filename, num_runs);
+    size_t num_generations = merge_runs(opts.output_filename, num_runs, working_memory, working_memory_size, opts.max_files);
     if (!num_generations) {
         free(working_memory);
         fprintf(stderr, "ERROR: unable to merge runs.\n");
