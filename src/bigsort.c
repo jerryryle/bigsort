@@ -3,6 +3,7 @@
 #include <assert.h>
 #include <errno.h>
 #include <limits.h>
+#include <stdlib.h>
 #include <stdbool.h>
 #include <string.h>
 #include <stdio.h>
@@ -10,9 +11,87 @@
 #include "merge.h"
 #include "run.h"
 
-
 static bool check_file_size(FILE *input_file);
-static bool on_close_file(FILE *file);
+
+static size_t create_runs_with_context(struct run_context *run, char const *output_filename);
+
+static size_t merge_runs_with_context(
+        struct merge_context *merge,
+        char const *output_filename, size_t num_runs,
+        size_t max_files_per_merge);
+
+static bool merge_single_run(
+        char const *output_filename,
+        size_t run_generation, size_t run_number,
+        size_t new_generation, size_t new_run_number);
+
+static bool merge_multiple_runs(
+        struct merge_context *merge, char const *output_filename,
+        size_t run_generation, size_t base_run_number, size_t num_runs,
+        size_t new_generation, size_t new_run_number);
+
+static bool open_run_files(
+        FILE **run_files, size_t num_runs,
+        char const *base_filename, size_t base_run_number, size_t run_generation);
+
+static bool close_and_remove_run_files(
+        FILE **run_files, size_t num_runs,
+        char const *base_filename, size_t base_run_number, size_t run_generation);
+
+
+size_t create_runs(FILE *input_file, char const *output_filename, void *run_data, size_t run_data_size)
+{
+    if (!check_file_size(input_file)) {
+        fprintf(stderr, "ERROR: input file's size must be a multiple of 4.\n");
+        return 0;
+    }
+
+    struct run_context *run = run_new(input_file, run_data, run_data_size);
+    if (!run) {
+        fprintf(stderr, "ERROR: Failed to create run context\n");
+        return 0;
+    }
+
+    size_t runs = create_runs_with_context(run, output_filename);
+
+    run_delete(run);
+    return runs;
+}
+
+size_t merge_runs(
+        char const *output_filename, size_t num_runs,
+        void *merge_data, size_t merge_data_size, size_t open_file_limit)
+{
+    // Create a new merge context
+    struct merge_context *merge = merge_new(merge_data, merge_data_size);
+    if (!merge) {
+        return 0;
+    }
+
+    // Given the data buffer we have to work with, determine the maximum number of files we can merge per pass.
+    // If this is larger than the caller-supplied limit, cap it at that limit.
+    size_t max_files_per_merge = merge_get_max_input_files(merge);
+    if (max_files_per_merge > open_file_limit) {
+        max_files_per_merge = open_file_limit;
+    }
+
+    // Perform the merge
+    size_t generations = merge_runs_with_context(merge, output_filename, num_runs, max_files_per_merge);
+
+    // Delete the merge context
+    merge_delete(merge);
+
+    // Return the number of generations that the merge took.
+    return generations;
+}
+
+static bool check_file_size(FILE *input_file) {
+    struct stat file_status = {0};
+    fstat(fileno(input_file), &file_status);
+    // Check that the file size is a multiple of 4. This bit magic checks that the lowest two bits are zero. If they
+    // are, then the file size is a multiple of 4.
+    return ((file_status.st_size & 0x03) == 0);
+}
 
 /*
  * This creates the initial sorted runs given an acquired run context.
@@ -52,23 +131,65 @@ static size_t create_runs_with_context(struct run_context *run, char const *outp
     return num_runs;
 }
 
-size_t create_runs(FILE *input_file, char const *output_filename, void *run_data, size_t run_data_size)
+static size_t merge_runs_with_context(
+        struct merge_context *merge,
+        char const *output_filename, size_t num_runs,
+        size_t max_files_per_merge)
 {
-    if (!check_file_size(input_file)) {
-        fprintf(stderr, "ERROR: input file's size must be a multiple of 4.\n");
-        return 0;
+    size_t generation = 0; // Generation counter
+    size_t num_runs_in_generation = num_runs;
+
+    // Keep merging runs into new generations of longer runs until there are no more runs to merge.
+    while (num_runs_in_generation >= 2) {
+        size_t const output_generation = generation + 1;
+        size_t input_current_run = 0;
+        size_t num_runs_in_output_generation = 0;
+
+        // Merge all runs in the current generation.
+        while (input_current_run < num_runs_in_generation) {
+            size_t num_runs_remaining = num_runs_in_generation - input_current_run;
+            if (num_runs_remaining >= 2) {
+                // If there are more than two run files remaining, merge as many as we can.
+                size_t num_runs_to_merge = max_files_per_merge;
+                if (num_runs_to_merge > num_runs_remaining) {
+                    num_runs_to_merge = num_runs_remaining;
+                }
+
+                // Merge the runs
+                if (!merge_multiple_runs(
+                        merge, output_filename,
+                        generation, input_current_run, num_runs_to_merge,
+                        output_generation, num_runs_in_output_generation)) {
+                    return 0;
+                }
+                // Update the run counter to reflect that we've merged multiple runs
+                input_current_run += num_runs_to_merge;
+            } else {
+                // If there's only one run left in the current generation, merge it with itself. This just
+                // renames the file so it becomes a run in the next generation.
+                if (!merge_single_run(
+                        output_filename,
+                        generation, input_current_run,
+                        output_generation, num_runs_in_output_generation)) {
+                    return 0;
+                }
+                // Update the run counter to reflect that we've merged one run
+                input_current_run++;
+            }
+            // Track how many runs we've produced in the next generation
+            num_runs_in_output_generation++;
+        }
+
+        // Update the current generation for the next loop iteration.
+        generation = output_generation;
+        num_runs_in_generation = num_runs_in_output_generation;
     }
 
-    struct run_context *run = run_new(input_file, run_data, run_data_size);
-    if (!run) {
-        fprintf(stderr, "ERROR: Failed to create run context\n");
+    // We've now merged down to a single run. Just rename the run file to the final output.
+    if(!merge_single_run(output_filename, generation, 0, 0, 0)) {
         return 0;
     }
-
-    size_t runs = create_runs_with_context(run, output_filename);
-
-    run_delete(run);
-    return runs;
+    return generation;
 }
 
 /*
@@ -122,41 +243,73 @@ static bool merge_multiple_runs(
         return false;
     }
 
-    // Open all run files and add them to the merge set.
-    for (size_t i = 0; i < num_runs; i++) {
-        // Format the run file name based on the run number and current generation. Open the file.
-        snprintf(filename, sizeof(filename),
-                 "%s.%lu.%lu", output_filename, run_generation, base_run_number+i);
-        FILE *input_run_file = fopen(filename, "rb");
-        if (!input_run_file) {
-            fprintf(stderr, "ERROR: unable to open run file: %s\n", strerror(errno));
-            merge_cleanup_merge(merge, on_close_file);
-            fclose(output_run_file);
-            return false;
-        }
+    FILE **input_run_files = (FILE **)malloc(num_runs * sizeof(FILE *));
 
-        // Add the file to the merge set
-        if (!merge_add_input_file(merge, input_run_file)) {
-            merge_cleanup_merge(merge, on_close_file);
-            fclose(output_run_file);
-            return false;
-        }
+    // Open all of the input run files and add them to the list.
+    bool success = open_run_files(
+            input_run_files, num_runs,
+            output_filename, base_run_number, run_generation);
+
+    if (success) {
+        // Perform the multi-way merge.
+        success = merge_perform_merge(merge, input_run_files, num_runs, output_run_file);
     }
-
-    // Perform the multi-way merge.
-    bool success = merge_perform_merge(merge, output_run_file, on_close_file);
-
-    // Cleanup after the merge
-    merge_cleanup_merge(merge, on_close_file);
 
     // Close the output file.
     fclose(output_run_file);
 
-    // Try to remove all the input run files now that they've been merged.
+    // Close and remove all of the input run files.
+    close_and_remove_run_files(
+            input_run_files, num_runs,
+            output_filename, base_run_number, run_generation);
+
+    // Free the run file list
+    free(input_run_files);
+
+    return success;
+}
+
+static bool open_run_files(
+        FILE **run_files, size_t num_runs,
+        char const *base_filename, size_t base_run_number, size_t run_generation)
+{
+    char filename[PATH_MAX] = {0};
+
+    // Open each run file and add the file pointer to the list of run file pointers
+    for (size_t i = 0; i < num_runs; i++) {
+        // Format the run file name based on the run number and current generation. Open the file.
+        snprintf(filename, sizeof(filename),
+                 "%s.%lu.%lu", base_filename, run_generation, base_run_number+i);
+        FILE *run_file = fopen(filename, "rb");
+        if (!run_file) {
+            fprintf(stderr, "ERROR: unable to open run file: %s\n", strerror(errno));
+            return false;
+        }
+        // Store the file pointer in the list.
+        run_files[i] = run_file;
+    }
+    return true;
+}
+
+static bool close_and_remove_run_files(
+        FILE **run_files, size_t num_runs,
+        char const *base_filename, size_t base_run_number, size_t run_generation)
+{
+    char filename[PATH_MAX] = {0};
+
+    // Close all open file pointers in the run file list.
+    for (size_t i = 0; i < num_runs; i++) {
+        if (fclose(run_files[i]) != 0) {
+            fprintf(stderr, "ERROR: unable to close run file: %s\n", strerror(errno));
+        }
+        run_files[i] = NULL;
+    }
+
+    // Remove all of the run files.
     for (size_t i = 0; i < num_runs; i++) {
         // Format the run file name based on the run number and current generation.
         snprintf(filename, sizeof(filename),
-                 "%s.%lu.%lu", output_filename, run_generation, base_run_number+i);
+                 "%s.%lu.%lu", base_filename, run_generation, base_run_number+i);
 
         // Delete run file
         if (remove(filename) != 0) {
@@ -164,91 +317,5 @@ static bool merge_multiple_runs(
         }
     }
 
-    return success;
-}
-
-size_t merge_runs(
-        char const *output_filename, size_t num_runs,
-        void *merge_data, size_t merge_data_size, size_t max_merge_files)
-{
-    size_t generation = 0; // Generation counter
-    size_t num_runs_in_generation = num_runs;
-
-    struct merge_context *merge = merge_new(merge_data, merge_data_size, max_merge_files);
-    if (!merge) {
-        return 0;
-    }
-
-    // Keep merging runs into new generations of longer runs until there are no more runs to merge.
-    while (num_runs_in_generation >= 2) {
-        size_t const output_generation = generation + 1;
-        size_t input_current_run = 0;
-        size_t num_runs_in_output_generation = 0;
-
-        // Merge all runs in the current generation.
-        while (input_current_run < num_runs_in_generation) {
-            if (num_runs_in_generation - input_current_run < 2) {
-                // If there's only one run left in the current generation, merge it with itself. This just
-                // renames the file so it becomes a run in the next generation.
-                if (!merge_single_run(
-                        output_filename,
-                        generation, input_current_run,
-                        output_generation, num_runs_in_output_generation)) {
-                    return 0;
-                }
-                // Update the run counter to reflect that we've merged one run
-                input_current_run++;
-            } else {
-                size_t num_runs_remaining = num_runs_in_generation - input_current_run;
-                size_t num_runs_to_merge = merge_capacity(merge);
-                if (num_runs_to_merge > num_runs_remaining) {
-                    num_runs_to_merge = num_runs_remaining;
-                }
-
-                // Merge the runs
-                if (!merge_multiple_runs(
-                        merge, output_filename,
-                        generation, input_current_run, num_runs_to_merge,
-                        output_generation, num_runs_in_output_generation)) {
-                    return 0;
-                }
-                // Update the run counter to reflect that we've merged multiple runs
-                input_current_run += num_runs_to_merge;
-            }
-            // Track how many runs we've produced in the next generation
-            num_runs_in_output_generation++;
-        }
-
-        // Update the current generation for the next loop iteration.
-        generation = output_generation;
-        num_runs_in_generation = num_runs_in_output_generation;
-    }
-
-    merge_delete(merge);
-
-    // We've now merged down to a single run. Just rename the run file to the final output.
-    if(!merge_single_run(output_filename, generation, 0, 0, 0)) {
-        return 0;
-    }
-
-    // Return the number of generations that the merge took.
-    return generation;
-}
-
-static bool check_file_size(FILE *input_file) {
-    struct stat file_status = {0};
-    fstat(fileno(input_file), &file_status);
-    // Check that the file size is a multiple of 4. This bit magic checks that the lowest two bits are zero. If they
-    // are, then the file size is a multiple of 4.
-    return ((file_status.st_size & 0x03) == 0);
-}
-
-static bool on_close_file(FILE *file)
-{
-    assert(file);
-    if (fclose(file) != 0){
-        fprintf(stderr, "ERROR: unable to close run file: %s\n", strerror(errno));
-        return false;
-    }
     return true;
 }
