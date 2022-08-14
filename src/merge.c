@@ -4,7 +4,7 @@
 #include "min_heap.h"
 
 struct merge_context {
-    struct min_heap* heap;
+    struct min_heap *heap;
 };
 
 enum read_uint32_result {
@@ -13,18 +13,22 @@ enum read_uint32_result {
     READ_EOF
 };
 
-static bool do_merge(struct merge_context *merge, FILE * const *input_files, size_t num_input_files, FILE *output_file);
+static bool do_merge(struct merge_context *merge, FILE *const *input_files, size_t num_input_files, FILE *output_file);
+
 static bool add_input_file(struct merge_context *merge, FILE *file);
+
 static bool write_uint32(FILE *output_file, uint32_t val);
+
 static enum read_uint32_result read_uint32(FILE *input_file, uint32_t *val);
+
 
 struct merge_context *merge_new(void *merge_data, size_t merge_data_size)
 {
-    struct merge_context *merge = (struct merge_context *)malloc(sizeof(struct merge_context));
+    struct merge_context *merge = (struct merge_context *) malloc(sizeof(struct merge_context));
     if (!merge) {
         return NULL;
     }
-    merge->heap = min_heap_new(merge_data,merge_data_size);
+    merge->heap = min_heap_new(merge_data, merge_data_size);
     if (!merge->heap) {
         free(merge);
         return NULL;
@@ -40,7 +44,7 @@ size_t merge_get_max_input_files(struct merge_context const *merge)
 
 bool merge_perform_merge(
         struct merge_context *merge,
-        FILE * const *input_files, size_t num_input_files,
+        FILE *const *input_files, size_t num_input_files,
         FILE *output_file)
 {
     assert(merge);
@@ -70,10 +74,10 @@ void merge_delete(struct merge_context *merge)
     }
 }
 
-static bool do_merge(struct merge_context *merge, FILE * const *input_files, size_t num_input_files, FILE *output_file)
+static bool do_merge(struct merge_context *merge, FILE *const *input_files, size_t num_input_files, FILE *output_file)
 {
     // Add all of the files to the minheap.
-    for (size_t i = 0; i< num_input_files; i++) {
+    for (size_t i = 0; i < num_input_files; i++) {
         assert(input_files[i]);
         if (!add_input_file(merge, input_files[i])) {
             return false;

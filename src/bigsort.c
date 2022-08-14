@@ -186,7 +186,7 @@ static size_t merge_runs_with_context(
     }
 
     // We've now merged down to a single run. Just rename the run file to the final output.
-    if(!merge_single_run(output_filename, generation, 0, 0, 0)) {
+    if (!merge_single_run(output_filename, generation, 0, 0, 0)) {
         return 0;
     }
     return generation;
@@ -243,7 +243,7 @@ static bool merge_multiple_runs(
         return false;
     }
 
-    FILE **input_run_files = (FILE **)malloc(num_runs * sizeof(FILE *));
+    FILE **input_run_files = (FILE **) malloc(num_runs * sizeof(FILE *));
 
     // Open all of the input run files and add them to the list.
     bool success = open_run_files(
@@ -279,7 +279,7 @@ static bool open_run_files(
     for (size_t i = 0; i < num_runs; i++) {
         // Format the run file name based on the run number and current generation. Open the file.
         snprintf(filename, sizeof(filename),
-                 "%s.%lu.%lu", base_filename, run_generation, base_run_number+i);
+                 "%s.%lu.%lu", base_filename, run_generation, base_run_number + i);
         FILE *run_file = fopen(filename, "rb");
         if (!run_file) {
             fprintf(stderr, "ERROR: unable to open run file: %s\n", strerror(errno));
@@ -309,7 +309,7 @@ static bool close_and_remove_run_files(
     for (size_t i = 0; i < num_runs; i++) {
         // Format the run file name based on the run number and current generation.
         snprintf(filename, sizeof(filename),
-                 "%s.%lu.%lu", base_filename, run_generation, base_run_number+i);
+                 "%s.%lu.%lu", base_filename, run_generation, base_run_number + i);
 
         // Delete run file
         if (remove(filename) != 0) {

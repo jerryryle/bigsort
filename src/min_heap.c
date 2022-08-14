@@ -15,10 +15,12 @@ struct min_heap {
     struct min_heap_element *data;
     size_t element_count;
     size_t element_capacity;
+
     int (*compare)(const void *, const void *);
 };
 
 static void heapify(struct min_heap *heap);
+
 static void swap_elements(struct min_heap *heap, size_t first_element, size_t second_element);
 
 struct min_heap *min_heap_new(void *data, size_t data_size)
@@ -29,13 +31,13 @@ struct min_heap *min_heap_new(void *data, size_t data_size)
         return NULL;
     }
 
-    struct min_heap *heap = (struct min_heap *)malloc(sizeof(struct min_heap));
+    struct min_heap *heap = (struct min_heap *) malloc(sizeof(struct min_heap));
     if (!heap) {
         return NULL;
     }
-    heap->data = (struct min_heap_element *)data;
+    heap->data = (struct min_heap_element *) data;
     heap->element_count = 0;
-    heap->element_capacity = data_size/sizeof(struct min_heap_element);
+    heap->element_capacity = data_size / sizeof(struct min_heap_element);
 
     return heap;
 }
@@ -76,8 +78,8 @@ bool min_heap_add(struct min_heap *heap, uint32_t key, FILE *value)
 
     // As long as the current element is smaller than its parent
     // Bubble it upwards until we hit the top of the tree
-    while ( (current_element != 0) &&
-            (heap->data[current_element].key < heap->data[PARENT_ELEMENT(current_element)].key) ) {
+    while ((current_element != 0) &&
+           (heap->data[current_element].key < heap->data[PARENT_ELEMENT(current_element)].key)) {
         // If the current element is smaller than its parent, swap it and keep moving upwards.
         size_t parent_element = PARENT_ELEMENT(current_element);
         swap_elements(heap, current_element, parent_element);
@@ -100,7 +102,7 @@ bool min_heap_pop(struct min_heap *heap, uint32_t *key, FILE **value)
     *key = heap->data[0].key;
     *value = heap->data[0].value;
     // Move the last element to the top and decrement the number of elements.
-    heap->data[0] = heap->data[heap->element_count-1];
+    heap->data[0] = heap->data[heap->element_count - 1];
     heap->element_count--;
     // re-heapify
     heapify(heap);

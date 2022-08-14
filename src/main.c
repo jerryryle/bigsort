@@ -8,8 +8,8 @@
 #include "bigsort.h"
 #include "round.h"
 
-static size_t const DEFAULT_RUN_SIZE = (size_t)1 * (1<<20); // (1<<20) is 1MB
-static size_t const DEFAULT_MAX_FILES = (size_t)1000;
+static size_t const DEFAULT_RUN_SIZE = (size_t) 1 * (1 << 20); // (1<<20) is 1MB
+static size_t const DEFAULT_MAX_FILES = (size_t) 1000;
 
 struct options {
     bool print_help;
@@ -20,7 +20,8 @@ struct options {
     bool quiet;
 };
 
-void print_usage() {
+void print_usage()
+{
     printf(
             "usage: bigsort [-h] [-q] [-r runsize] [-max maxfiles] infile outfile\n" \
             "\n" \
@@ -47,15 +48,16 @@ void print_usage() {
             "                             Defaults to 1000 if not specified. Specify 0 to\n" \
             "                             open as many files as possible with 'SIZE' memory.\n" \
             "                             (too large of a value may fail due to OS limits)\n" \
-            );
+);
 }
 
-void get_options(int argc, char * const argv[], struct options *opts) {
+void get_options(int argc, char *const argv[], struct options *opts)
+{
     static struct option const long_options[] = {
-            {"help", no_argument, 0, 'h'},
+            {"help",    no_argument,       0, 'h'},
             {"runsize", required_argument, 0, 'r'},
-            {"quiet", required_argument, 0, 'q'},
-            {0, 0, 0, 0}
+            {"quiet",   required_argument, 0, 'q'},
+            {0, 0,                         0, 0}
     };
 
     // Set default options
@@ -80,7 +82,7 @@ void get_options(int argc, char * const argv[], struct options *opts) {
                 opts->quiet = true;
                 break;
             case 'r':
-                opts->run_size = (size_t)strtoul(optarg, NULL, 0);
+                opts->run_size = (size_t) strtoul(optarg, NULL, 0);
                 break;
             default:
                 break;
@@ -100,7 +102,8 @@ void get_options(int argc, char * const argv[], struct options *opts) {
     opts->run_size = round_up_to_multiple_of_4(opts->run_size);
 }
 
-int main(int argc, char *argv[]) {
+int main(int argc, char *argv[])
+{
     struct options opts = {0};
     get_options(argc, argv, &opts);
     if (opts.print_help) {
@@ -154,7 +157,8 @@ int main(int argc, char *argv[]) {
     }
 
     // Merge the initial runs into the final output file
-    size_t num_generations = merge_runs(opts.output_filename, num_runs, working_memory, working_memory_size, opts.max_files);
+    size_t num_generations = merge_runs(opts.output_filename, num_runs, working_memory, working_memory_size,
+                                        opts.max_files);
     if (!num_generations) {
         free(working_memory);
         fprintf(stderr, "ERROR: unable to merge runs.\n");
